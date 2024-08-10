@@ -1,9 +1,11 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const bcrypt = require('bcrypt');
-const { User } = require('../models/user'); // Ensure the correct path to your model
-const userRouter = require('../routes/user'); // Ensure the correct path to your routes
+const bcrypt = require('bcryptjs'); // Import bcrypt
+const {User} = require('../models/user'); // Import User model
+const userRouter = require('./routes/user');
+const classroomRouter = require('./routes/classroom');
+const timetableRouter = require('./routes/timetable');
 
 dotenv.config(); // Load environment variables
 
@@ -16,10 +18,9 @@ const connectDB = async () => {
         await mongoose.connect('mongodb://localhost:27017/classroom');
         console.log('MongoDB connected');
 
-        // Check if the principal account already exists
+        // Create default principal account if it does not exist
         const principal = await User.findOne({ username: 'principal@classroom.com' });
         if (!principal) {
-            // Create the default principal account
             const hashedPassword = await bcrypt.hash('Admin', 10);
             await User.create({
                 username: 'principal@classroom.com',
@@ -27,6 +28,8 @@ const connectDB = async () => {
                 role: 'principal'
             });
             console.log('Default principal account created');
+        } else {
+            console.log('Principal account already exists');
         }
     } catch (error) {
         console.error('Error connecting to MongoDB or creating default principal account:', error);
@@ -37,6 +40,8 @@ connectDB();
 
 // Use routes
 app.use('/api', userRouter);
+app.use('/api/classrooms', classroomRouter);
+app.use('/api/timetables', timetableRouter);
 
 app.listen(3000, () => {
     console.log('Server is running on port 3000');
