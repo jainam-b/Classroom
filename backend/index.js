@@ -43,7 +43,9 @@ connectDB();
 app.use('/api', userRouter);
 app.use('/api/classrooms', classroomRouter);
 app.use('/api/timetables', timetableRouter);
- 
+app.get('/api/hello', (req, res) => {
+    res.send('Hello World!');
+});
 
 app.listen(3000, () => {
     console.log('Server is running on port 3000');
