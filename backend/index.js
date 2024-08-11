@@ -43,7 +43,7 @@ connectDB();
 app.use('/api', userRouter);
 app.use('/api/classrooms', classroomRouter);
 app.use('/api/timetables', timetableRouter);
-app.get('/api/hello', (req, res) => {
+app.get('/', (req, res) => {
     res.send('Hello World!');
 });
 
