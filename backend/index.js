@@ -7,16 +7,16 @@ const userRouter = require('./routes/user');
 const classroomRouter = require('./routes/classroom');
 const timetableRouter = require('./routes/timetable');
  
-
+require('dotenv').config();
 dotenv.config(); // Load environment variables
-
+MONGO_URL=process.env.MONGO_URL
 const app = express();
 app.use(express.json());
 
 // Connect to MongoDB
 const connectDB = async () => {
     try {
-        await mongoose.connect('mongodb://localhost:27017/classroom');
+        await mongoose.connect(MONGO_URL);
         console.log('MongoDB connected');
 
         // Create default principal account if it does not exist
