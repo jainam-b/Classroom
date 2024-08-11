@@ -133,4 +133,22 @@ router.delete('/:id', authenticate, async (req, res) => {
     }
 });
 
+
+// Principal only route to get lists of teachers and students
+router.get('/users', authenticate, async (req, res) => {
+    try {
+        const currentUser = await User.findById(req.user.id);
+        if (!currentUser || currentUser.role !== 'principal') {
+            return res.status(403).json({ message: 'Forbidden' });
+        }
+
+        const teachers = await User.find({ role: 'teacher' });
+        const students = await User.find({ role: 'student' });
+
+        res.status(200).json({ teachers, students });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
 module.exports = router;

@@ -6,6 +6,7 @@ const {User} = require('./models/user'); // Import User model
 const userRouter = require('./routes/user');
 const classroomRouter = require('./routes/classroom');
 const timetableRouter = require('./routes/timetable');
+ 
 
 dotenv.config(); // Load environment variables
 
@@ -42,6 +43,7 @@ connectDB();
 app.use('/api', userRouter);
 app.use('/api/classrooms', classroomRouter);
 app.use('/api/timetables', timetableRouter);
+ 
 
 app.listen(3000, () => {
     console.log('Server is running on port 3000');
