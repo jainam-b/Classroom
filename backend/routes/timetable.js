@@ -1,7 +1,7 @@
 const express = require('express');
-const { Timetable } = require('../../models/timetable');
-const { Classroom } = require('../../models/classroom');
-const { User } = require('../../models/user'); // Ensure User model is imported
+const { Timetable } = require('../models/timetable');
+const { Classroom } = require('../models/classroom');
+const { User } = require('../models/user'); // Ensure User model is imported
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 

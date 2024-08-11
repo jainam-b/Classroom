@@ -1,25 +1,30 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { User } = require('../../models/user');
+const { User } = require('../models/user');
 const router = express.Router();
 require('dotenv').config();
+const authenticate = require("../middleware/authMiddleware");
 const JWT_SECRET = process.env.JWT_SECRET;
 
+// Role constants
+const ROLES = {
+    PRINCIPAL: 'principal',
+    TEACHER: 'teacher',
+    STUDENT: 'student',
+};
 
 // Signup route
-router.post('/signup', async (req, res) => {
+router.post('/signup', authenticate, async (req, res) => {
     const { username, password, role } = req.body;
-    const token = req.headers.authorization;
 
     if (!username || !password || !role) {
         return res.status(400).json({ message: 'Please provide username, password, and role' });
     }
 
     try {
-        // Verify the token and role of the user making the request
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const currentUser = await User.findById(decoded.id);
+        // Get the current user from the request
+        const currentUser = await User.findById(req.user.id);
 
         if (!currentUser) {
             return res.status(401).json({ message: 'Unauthorized' });
@@ -27,8 +32,8 @@ router.post('/signup', async (req, res) => {
 
         // Check if the current user is allowed to create accounts
         if (
-            (currentUser.role === 'principal' && (role === 'teacher' || role === 'student')) ||
-            (currentUser.role === 'teacher' && role === 'student')
+            (currentUser.role === ROLES.PRINCIPAL && (role === ROLES.TEACHER || role === ROLES.STUDENT)) ||
+            (currentUser.role === ROLES.TEACHER && role === ROLES.STUDENT)
         ) {
             // Check if user already exists
             const existingUser = await User.findOne({ username });
@@ -56,10 +61,6 @@ router.post('/signup', async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 });
-
-
-
-
 
 // Login route
 router.post('/login', async (req, res) => {
@@ -92,6 +93,42 @@ router.post('/login', async (req, res) => {
         res.status(200).json({ message: 'Login successful', token });
     } catch (error) {
         console.error('Error logging in:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Update user (Principal only)
+router.put('/:id', authenticate, async (req, res) => {
+    if (req.user.role !== ROLES.PRINCIPAL) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    try {
+        const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.status(200).json({ message: 'User updated successfully', user });
+    } catch (error) {
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Delete user (Principal only)
+router.delete('/:id', authenticate, async (req, res) => {
+    if (req.user.role !== ROLES.PRINCIPAL) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    try {
+        const user = await User.findByIdAndDelete(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.status(200).json({ message: 'User deleted successfully' });
+    } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
     }
 });
