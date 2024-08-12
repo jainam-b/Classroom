@@ -138,7 +138,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 router.get('/users', authenticate, async (req, res) => {
     try {
         const currentUser = await User.findById(req.user.id);
-        if (!currentUser || currentUser.role !== 'principal') {
+        if (!currentUser || currentUser.role !== 'principal' && currentUser.role !== 'teacher' ) {
             return res.status(403).json({ message: 'Forbidden' });
         }
 
