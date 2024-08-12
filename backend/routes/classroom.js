@@ -2,26 +2,18 @@ const express = require("express");
 const { Classroom } = require("../models/classroom");
 const { User } = require("../models/user");
 const { Timetable } = require("../models/timetable");
-const jwt = require("jsonwebtoken");
+const authenticate = require("../middleware/authMiddleware");
 const router = express.Router();
-require("dotenv").config();
-const authenticate = require("../middleware/authMiddleware"); // Importing the authentication middleware
-const JWT_SECRET = process.env.JWT_SECRET;
 
 // Create Classroom route
 router.post("/create", authenticate, async (req, res) => {
-  const { name, startTime, endTime, days, teacherId } = req.body;
+  const { name, startTime, endTime, days, teacherId, capacity, subject } = req.body;
 
   if (!name || !startTime || !endTime || !days || !teacherId) {
     return res.status(400).json({
-      message:
-        "Please provide name, start time, end time, days, and teacher ID",
+      message: "Please provide name, start time, end time, days, and teacher ID",
     });
   }
-  console.log("Teacher ID from request:", teacherId);
-
-  const teacher = await User.findById(teacherId);
-  console.log("Teacher found:", teacher);
 
   try {
     const currentUser = await User.findById(req.user.id);
@@ -30,21 +22,19 @@ router.post("/create", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    // Verify that the teacher exists
     const teacher = await User.findById(teacherId);
     if (!teacher || teacher.role !== "teacher") {
-      return res
-        .status(404)
-        .json({ message: "Teacher not found or not valid" });
+      return res.status(404).json({ message: "Teacher not found or not valid" });
     }
 
-    // Create new classroom
     const newClassroom = await Classroom.create({
       name,
-      startTime,
-      endTime,
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
       days,
       teacher: teacherId,
+      capacity: capacity || 30,
+      subject,
     });
 
     res.status(201).json({
@@ -59,7 +49,7 @@ router.post("/create", authenticate, async (req, res) => {
 
 // Update Classroom route (Principal only)
 router.put("/:id", authenticate, async (req, res) => {
-  const { name, startTime, endTime, days, teacherId } = req.body;
+  const { name, startTime, endTime, days, teacherId, capacity, subject } = req.body;
 
   try {
     const currentUser = await User.findById(req.user.id);
@@ -68,20 +58,24 @@ router.put("/:id", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    // Verify that the teacher exists if teacherId is provided
     if (teacherId) {
       const teacher = await User.findById(teacherId);
-
       if (!teacher || teacher.role !== "teacher") {
-        return res
-          .status(404)
-          .json({ message: "Teacher not found or not valid" });
+        return res.status(404).json({ message: "Teacher not found or not valid" });
       }
     }
 
     const updatedClassroom = await Classroom.findByIdAndUpdate(
       req.params.id,
-      { name, startTime, endTime, days, teacher: teacherId },
+      { 
+        name, 
+        startTime: startTime ? new Date(startTime) : undefined,
+        endTime: endTime ? new Date(endTime) : undefined,
+        days, 
+        teacher: teacherId,
+        capacity,
+        subject
+      },
       { new: true }
     );
 
@@ -89,86 +83,17 @@ router.put("/:id", authenticate, async (req, res) => {
       return res.status(404).json({ message: "Classroom not found" });
     }
 
-    res
-      .status(200)
-      .json({
-        message: "Classroom updated successfully",
-        classroom: updatedClassroom,
-      });
+    res.status(200).json({
+      message: "Classroom updated successfully",
+      classroom: updatedClassroom,
+    });
   } catch (error) {
     console.error("Error updating classroom:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// Delete Classroom route (Principal only)
-router.delete("/:id", authenticate, async (req, res) => {
-  try {
-    const currentUser = await User.findById(req.user.id);
-
-    if (!currentUser || currentUser.role !== "principal") {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
-    const deletedClassroom = await Classroom.findByIdAndDelete(req.params.id);
-
-    if (!deletedClassroom) {
-      return res.status(404).json({ message: "Classroom not found" });
-    }
-
-    res.status(200).json({ message: "Classroom deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting classroom:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-router.get('/:classroomId', authenticate, async (req, res) => {
-  try {
-      const currentUser = await User.findById(req.user.id);
-      if (!currentUser || currentUser.role !== 'principal') {
-          return res.status(403).json({ message: 'Forbidden' });
-      }
-
-      const timetables = await Timetable.find({ classroom: req.params.classroomId });
-      res.status(200).json({ timetables });
-  } catch (error) {
-      console.error('Error fetching timetables:', error);
-      res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-
-
-// List Students in Classroom (accessible by Teacher)
-router.get('/:classroomId/students', authenticate, async (req, res) => {
-  try {
-      const currentUser = await User.findById(req.user.id);
-      if (!currentUser || currentUser.role !== 'teacher') {
-          return res.status(403).json({ message: 'Forbidden' });
-      }
-
-      // Fetch the classroom
-      const classroom = await Classroom.findById(req.params.classroomId);
-      if (!classroom) {
-          return res.status(404).json({ message: 'Classroom not found' });
-      }
-
-      // Verify if the current user is assigned to this classroom
-      if (classroom.teacher.toString() !== currentUser._id.toString()) {
-          return res.status(403).json({ message: 'Forbidden' });
-      }
-
-      // Fetch students assigned to this teacher/classroom
-      const students = await User.find({ classroom: classroom._id, role: 'student' });
-      res.status(200).json({ students });
-  } catch (error) {
-      console.error('Error fetching students:', error);
-      res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Assign Student to Classroom route (Principal only)
+// Assign Student to Classroom route (Principal or Teacher)
 router.post("/:classroomId/assign-student", authenticate, async (req, res) => {
   const { studentId } = req.body;
 
@@ -179,24 +104,29 @@ router.post("/:classroomId/assign-student", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    // Verify that the student exists
     const student = await User.findById(studentId);
     if (!student || student.role !== "student") {
       return res.status(404).json({ message: "Student not found or not valid" });
     }
 
-    // Fetch the classroom
     const classroom = await Classroom.findById(req.params.classroomId);
     if (!classroom) {
       return res.status(404).json({ message: "Classroom not found" });
     }
 
-    // Verify if the current user is assigned to this classroom if role is teacher
     if (currentUser.role === "teacher" && classroom.teacher.toString() !== currentUser._id.toString()) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    // Assign student to the classroom
+    if (classroom.students.length >= classroom.capacity) {
+      return res.status(400).json({ message: "Classroom is at full capacity" });
+    }
+
+    if (!classroom.students.includes(student._id)) {
+      classroom.students.push(student._id);
+      await classroom.save();
+    }
+
     student.classroom = classroom._id;
     await student.save();
 
@@ -207,65 +137,78 @@ router.post("/:classroomId/assign-student", authenticate, async (req, res) => {
   }
 });
 
-router.get('/', authenticate, async (req, res) => {
+// Get all assigned students for a teacher
+router.get('/teacher/:teacherId/students', authenticate, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.id);
-    if (!currentUser || currentUser.role !== 'principal') {
+    if (!currentUser || (currentUser.role !== 'principal' && currentUser.role !== 'teacher')) {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
-    const classrooms = await Classroom.find({});
-    res.status(200).json({ classrooms });
+    if (currentUser.role === 'teacher' && currentUser._id.toString() !== req.params.teacherId) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const teacher = await User.findById(req.params.teacherId);
+    if (!teacher || teacher.role !== 'teacher') {
+      return res.status(404).json({ message: 'Teacher not found' });
+    }
+
+    const classroom = await Classroom.findOne({ teacher: teacher._id });
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found for this teacher' });
+    }
+
+    const students = await User.find({ _id: { $in: classroom.students } });
+    res.status(200).json({ students });
   } catch (error) {
-    console.error('Error fetching classrooms:', error);
+    console.error('Error fetching assigned students:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
 
-
-router.post('/:classroomId/assign-teacher', authenticate, async (req, res) => {
-  const { teacherId } = req.body;
+// Assign a teacher to a student (effectively assigning student to teacher's classroom)
+router.post('/assign-teacher-to-student', authenticate, async (req, res) => {
+  const { teacherId, studentId } = req.body;
 
   try {
     const currentUser = await User.findById(req.user.id);
-
     if (!currentUser || currentUser.role !== 'principal') {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
-    // Verify that the teacher exists and is actually a teacher
     const teacher = await User.findById(teacherId);
     if (!teacher || teacher.role !== 'teacher') {
       return res.status(404).json({ message: 'Teacher not found or not valid' });
     }
 
-    // Fetch the classroom
-    const classroom = await Classroom.findById(req.params.classroomId);
+    const student = await User.findById(studentId);
+    if (!student || student.role !== 'student') {
+      return res.status(404).json({ message: 'Student not found or not valid' });
+    }
+
+    const classroom = await Classroom.findOne({ teacher: teacher._id });
     if (!classroom) {
-      return res.status(404).json({ message: 'Classroom not found' });
+      return res.status(404).json({ message: 'Classroom not found for this teacher' });
     }
 
-    // Check if the teacher is already assigned to another classroom
-    const existingClassroom = await Classroom.findOne({ teacher: teacherId });
-    if (existingClassroom && existingClassroom._id.toString() !== classroom._id.toString()) {
-      return res.status(400).json({ message: 'Teacher is already assigned to another classroom' });
+    if (classroom.students.length >= classroom.capacity) {
+      return res.status(400).json({ message: "Classroom is at full capacity" });
     }
 
-    // Assign the teacher to the classroom
-    classroom.teacher = teacherId;
-    await classroom.save();
+    if (!classroom.students.includes(student._id)) {
+      classroom.students.push(student._id);
+      await classroom.save();
+    }
 
-    // Optionally, you can also update the teacher's record if needed
-    teacher.classroom = classroom._id;
-    await teacher.save();
+    student.classroom = classroom._id;
+    await student.save();
 
-    res.status(200).json({ message: 'Teacher assigned to classroom successfully', classroom });
+    res.status(200).json({ message: 'Teacher assigned to student successfully', student });
   } catch (error) {
-    console.error('Error assigning teacher to classroom:', error);
+    console.error('Error assigning teacher to student:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
-
-
 
 module.exports = router;
