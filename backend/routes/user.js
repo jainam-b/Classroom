@@ -49,7 +49,7 @@ router.post('/signup', authenticate, async (req, res) => {
             const newToken = jwt.sign(
                 { id: newUser._id, role: newUser.role },
                 JWT_SECRET,
-                { expiresIn: '1h' }
+                
             );
 
             return res.status(201).json({ message: 'User created successfully', token: newToken });
@@ -87,7 +87,7 @@ router.post('/login', async (req, res) => {
         const token = jwt.sign(
             { id: user._id, role: user.role },
             JWT_SECRET,
-            { expiresIn: '1h' }
+             
         );
 
         res.status(200).json({ message: 'Login successful', token });

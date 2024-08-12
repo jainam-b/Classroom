@@ -207,6 +207,65 @@ router.post("/:classroomId/assign-student", authenticate, async (req, res) => {
   }
 });
 
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser || currentUser.role !== 'principal') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const classrooms = await Classroom.find({});
+    res.status(200).json({ classrooms });
+  } catch (error) {
+    console.error('Error fetching classrooms:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+router.post('/:classroomId/assign-teacher', authenticate, async (req, res) => {
+  const { teacherId } = req.body;
+
+  try {
+    const currentUser = await User.findById(req.user.id);
+
+    if (!currentUser || currentUser.role !== 'principal') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    // Verify that the teacher exists and is actually a teacher
+    const teacher = await User.findById(teacherId);
+    if (!teacher || teacher.role !== 'teacher') {
+      return res.status(404).json({ message: 'Teacher not found or not valid' });
+    }
+
+    // Fetch the classroom
+    const classroom = await Classroom.findById(req.params.classroomId);
+    if (!classroom) {
+      return res.status(404).json({ message: 'Classroom not found' });
+    }
+
+    // Check if the teacher is already assigned to another classroom
+    const existingClassroom = await Classroom.findOne({ teacher: teacherId });
+    if (existingClassroom && existingClassroom._id.toString() !== classroom._id.toString()) {
+      return res.status(400).json({ message: 'Teacher is already assigned to another classroom' });
+    }
+
+    // Assign the teacher to the classroom
+    classroom.teacher = teacherId;
+    await classroom.save();
+
+    // Optionally, you can also update the teacher's record if needed
+    teacher.classroom = classroom._id;
+    await teacher.save();
+
+    res.status(200).json({ message: 'Teacher assigned to classroom successfully', classroom });
+  } catch (error) {
+    console.error('Error assigning teacher to classroom:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 
 
 module.exports = router;
